@@ -7,4 +7,4 @@ cd "$SOURCE_DIR"
 
 #=============================================================
 
-zip 03_xkissm01_xdurco00.zip *.cpp *.h *.hpp Makefile
+zip 03_xkissm01_xdurco00.zip *.cpp *.h *.hpp Makefile *.pdf
