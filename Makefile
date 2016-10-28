@@ -8,11 +8,9 @@ EXECUTABLE=restaurace
 
 # Get source file names
 SOURCES=$(wildcard *.cpp)
-#$(info DEBUG: SOURCES=$(SOURCES))
 
 # Generate object names from sources
 OBJECTS=$(patsubst %.cpp,%.o,$(SOURCES))
-#$(info DEBUG: OBJECTS=$(OBJECTS))
 
 LFLAGS=
 LIBS=
