@@ -2,18 +2,21 @@
 #ifndef error_hpp
 #define error_hpp
 
-#define DEBUG           1
+// Define DEBUG macro if it is not already defined
+#ifndef DEBUG
+    #define DEBUG           1
+#endif
 #define LOG_WARNINGS    1
 
 #include <iostream>
 
-// Prints error message to stderr and exit with code
+/** Prints error message to stderr and exit with code */
 void Fatal(int code, const char *fmt, ...);
 
-// Prints error message to stderr and exit with code
+/** Prints error message to stderr */
 void Warning(const char *fmt, ...);
 
-// Prints error message to stderr and exit with code
+/** Prints message to stdout */
 void Log(const char *fmt, ...);
 
 #endif
