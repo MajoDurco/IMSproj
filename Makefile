@@ -12,6 +12,7 @@ SOURCES=$(wildcard *.cpp)
 # Generate object names from sources
 OBJECTS=$(patsubst %.cpp,%.o,$(SOURCES))
 
+#LDFLAGS="-Wl,-rpath,../libs/"
 LFLAGS=
 LIBS=-lsimlib
 
@@ -26,12 +27,13 @@ all: $(EXECUTABLE)
 $(EXECUTABLE): $(OBJECTS)
 	@mkdir -p $(dir $@)
 	@echo "Executable: $(notdir $@)"
-	@$(LINK.o) $(CFLAGS) $^ -o $@ $(LIBS)
-	@cp "/usr/local/lib/libsimlib.so" "./simlib.so"
+	@$(LINK.o) $(CFLAGS) $^ -o $@ $(LFLAGS) $(LIBS)
+	
+#@cp "/usr/local/lib/libsimlib.so" "./simlib.so"
 	
 %.o: %.cpp
 	@echo "Compile: $<  => $(notdir $@)"
-	@$(CC) $(CFLAGS) -c $<  -o $@ $(LFLAGS)
+	@$(CC) $(CFLAGS) -c $<  -o $@
 	
 # Clean executable
 clean:
