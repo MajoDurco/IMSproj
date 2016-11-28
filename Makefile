@@ -16,6 +16,8 @@ OBJECTS=$(patsubst %.cpp,%.o,$(SOURCES))
 LFLAGS=
 LIBS=-lsimlib
 
+INT := $(shell command -v install_name_tool 2> /dev/null)
+
 # rule-expression: dependency-expression
 # $^ => dependency-expression
 # $@ => rule-expression
@@ -28,6 +30,9 @@ $(EXECUTABLE): $(OBJECTS)
 	@mkdir -p $(dir $@)
 	@echo "Executable: $(notdir $@)"
 	@$(LINK.o) $(CFLAGS) $^ -o $@ $(LFLAGS) $(LIBS)
+ifdef INT
+	@install_name_tool -change simlib.so /usr/local/lib/libsimlib.so $(EXECUTABLE) || true
+endif
 	
 #@cp "/usr/local/lib/libsimlib.so" "./simlib.so"
 	
