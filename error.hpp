@@ -9,6 +9,7 @@
 #define LOG_WARNINGS    1
 
 #include <iostream>
+#include <stdarg.h>
 
 /** Prints error message to stderr and exit with code */
 void Fatal(int code, const char *fmt, ...);
