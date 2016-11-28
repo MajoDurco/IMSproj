@@ -2,7 +2,7 @@
 # Compiler
 CC=g++
 # Compiler options
-CFLAGS=
+CFLAGS=-std=c++11
 # Executable filename 
 EXECUTABLE=restaurace
 
@@ -13,7 +13,7 @@ SOURCES=$(wildcard *.cpp)
 OBJECTS=$(patsubst %.cpp,%.o,$(SOURCES))
 
 LFLAGS=
-LIBS=
+LIBS=-lsimlib
 
 # rule-expression: dependency-expression
 # $^ => dependency-expression
@@ -26,14 +26,16 @@ all: $(EXECUTABLE)
 $(EXECUTABLE): $(OBJECTS)
 	@mkdir -p $(dir $@)
 	@echo "Executable: $(notdir $@)"
-	@$(LINK.o) $(CFLAGS) $^ -o $@
+	@$(LINK.o) $(CFLAGS) $^ -o $@ $(LIBS)
+	@cp "/usr/local/lib/libsimlib.so" "./simlib.so"
 	
 %.o: %.cpp
 	@echo "Compile: $<  => $(notdir $@)"
-	@$(CC) $(CFLAGS) -c $<  -o $@ $(LFLAGS) $(LIBS)
+	@$(CC) $(CFLAGS) -c $<  -o $@ $(LFLAGS)
 	
 # Clean executable
 clean:
+	@rm -f simlib.so
 	@rm -f $(EXECUTABLE)
 	@rm -f *.o
 	
