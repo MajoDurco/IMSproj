@@ -16,6 +16,24 @@ using namespace std;
 
 Facility settling("Usádzač");
 Histogram peopleInSystem("Zákazníci v systéme", 0, 1, 10);
+Queue Q;
+
+class PeopleGroup;
+
+/** Timer for people in queue */
+class Timer : public Event {
+	Process *process;
+public:
+	Timer(double t, Process *p): process(p)
+	{
+		Activate(Time+t);
+	}
+
+	void Behavior()
+	{
+		process->Out();
+	}
+};
 
 /** Class representing people gruop incoming to restaurant */
 class PeopleGroup : public Process {
@@ -23,7 +41,17 @@ class PeopleGroup : public Process {
     void Behavior() {
         double tvstup = Time;
         double settlingTime;
-        
+
+		//Event *timeout = NULL;
+		//if(Q.Length()<20)
+			//Into(Q);
+		//else
+			//if (Random()<=0.8)
+			//{
+				//Into(Q);
+				//timeout = new Timer(MINUTES(15), this);
+			//}
+
         // Settler starts settling people group
         Seize(settling);
         // Settler is navigating people to their table
@@ -34,13 +62,13 @@ class PeopleGroup : public Process {
         
         // Settler is returning to his position
         Wait(settlingTime);
-        // Settler is free for taking another group of people
-        Release(settling);
+        // Settler is free for taking another group of people Release(settling);
         
         const double timeInSystem = Time - tvstup;
         peopleInSystem(timeInSystem);
     }
 };
+
 
 /** Generating people group to system */
 class PeopleGenerator: public Event {
@@ -64,7 +92,7 @@ private:
 int main(int argc, char* argv[]) {
     
     /* Restaurant
-     Observe time:      11:00 - 13:30 (2.5 hours)
+	 Observe time:      11:00 - 13:30 (2.5 hours)
         Observing start time:   0 hours
         Observing end time:     2.5 hours
      */
@@ -72,9 +100,8 @@ int main(int argc, char* argv[]) {
     const double endTime = HOURS(2.5);  // To   13:30
     
     // Initialize simulation
-    Init(startingTime, endTime);
-    // Start generator with exponential time interval
-    (new PeopleGenerator(MINUTES(3)))->Activate();
+    Init(startingTime, endTime); // Start generator with exponential time interval
+	(new PeopleGenerator(MINUTES(3)))->Activate();
     // Run simulation
     Run();
     
