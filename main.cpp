@@ -40,27 +40,24 @@ Store cookers("Kuchári", NUMBER_OF_COOKERS);
 Histogram peopleInSystem("Zákazníci v systéme", 0, 1, 10);
 
 
-
-
-class SettlerReturning: public Process {
+class Returning: public Process {
 public:
     
-    SettlerReturning(double t) {
+    Returning(double t, Store &release_store) {
         this->t = t;
+		this->release_store = release_store;
     }
     
     void Behavior() {
         Wait(t);
         // Settler is free for taking another group of people
-        Leave(settlers);
+        Leave(*release_store);
     }
     
 private:
     double t;
+	Store *release_store;
 };
-
-
-
 
 
 class ClientQueueLeaving: public Process {
@@ -84,16 +81,14 @@ private:
     Process *p;
 };
 
-
-
-
-
 /** Class representing people gruop incoming to restaurant */
 class PeopleGroup: public Process {
     
     void Behavior() {
         double tvstup = Time;
         double settlingTime;
+		double choosingTime;
+        double writingOrder;
         
         const unsigned int frontLength = settlers.Q->Length();
         // People check front length and if it is too long
@@ -126,15 +121,30 @@ class PeopleGroup: public Process {
         delete leavingTimer;
         
         // Settler is navigating people to their table
-        settlingTime = Uniform(SECONDS(1500), SECONDS(3000));
+        settlingTime = Uniform(MINUTES(1), MINUTES(2));
         Wait(settlingTime);
 
         // Settler returns to his position
-        (new SettlerReturning(settlingTime))->Activate();
+        (new Returning(settlingTime, settlers))->Activate();
         
         // TODO: People are settled
         Log("Customer SETTLED (tables: %i)", tables.Used());
-        
+
+        Enter(waiters);
+		Wait(SECONDS(30));
+        Log("Customer has got MENU");
+        (new Returning(SECONDS(30), waiters))->Activate();
+
+        choosingTime = Uniform(MINUTES(3), MINUTES(15));
+        Wait(choosingTime);
+        Log("Customer has chosen a meal");
+        Enter(waiters);
+		Wait(SECONDS(30));
+        writingOrder = Uniform(SECONDS(15), SECONDS(60));
+        Wait(writingOrder);
+        Log("Customer is waiting for a meal");
+        (new Returning(SECONDS(30), waiters))->Activate();
+
         // TODO: Leave(tables);
         
         const double timeInSystem = Time - tvstup;
@@ -174,7 +184,7 @@ int main(int argc, char* argv[]) {
     // Initialize simulation
     Init(startingTime, endTime);
     // Start generator with exponential time interval
-    (new PeopleGenerator(MINUTES(0.1)))->Activate();
+    (new PeopleGenerator(MINUTES(1)))->Activate();
     // Run simulation
     Run();
     
