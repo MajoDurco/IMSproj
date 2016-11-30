@@ -39,24 +39,46 @@ Store cookers("Kuchári", NUMBER_OF_COOKERS);
 
 Histogram peopleInSystem("Zákazníci v systéme", 0, 1, 10);
 
+class processOrder: public Process {
+
+public:
+    void Behavior()
+	{
+        double preparingTime;
+		// take cook to prepare meal for order
+		Enter(cookers);
+	    preparingTime = Uniform(MINUTES(15), MINUTES(30));
+		Log("Going to prepare food for %g ", preparingTime);
+        Wait(preparingTime);
+		Leave(cookers);
+		Log("Meal is ready");
+		// TODO somehow make priority to take waiter
+    }
+
+private:
+};
 
 class Returning: public Process {
 public:
     
-    Returning(double t, Store &release_store) {
+    Returning(double t, Store &release_store, bool order=false) {
         this->t = t;
 		this->release_store = release_store;
+		this->order = order;
     }
     
     void Behavior() {
         Wait(t);
         // Settler is free for taking another group of people
+		if(order)
+			(new processOrder())->Activate(); // place order to the kitchen
         Leave(*release_store);
     }
     
 private:
     double t;
 	Store *release_store;
+	bool order;
 };
 
 
@@ -80,6 +102,7 @@ private:
     double t;
     Process *p;
 };
+
 
 /** Class representing people gruop incoming to restaurant */
 class PeopleGroup: public Process {
@@ -142,8 +165,8 @@ class PeopleGroup: public Process {
 		Wait(SECONDS(30));
         writingOrder = Uniform(SECONDS(15), SECONDS(60));
         Wait(writingOrder);
+        (new Returning(SECONDS(30), waiters, true))->Activate();
         Log("Customer is waiting for a meal");
-        (new Returning(SECONDS(30), waiters))->Activate();
 
         // TODO: Leave(tables);
         
@@ -196,54 +219,3 @@ int main(int argc, char* argv[]) {
     
     return EXIT_SUCCESS;
 }
-
-/* Example of small simulation
- 
-using namespace simlib3;
-
-Facility Linka("Obsluzna linka");
-
-Stat dobaObsluhy("Doba obsluhy na lince");
-
-Histogram dobaVSystemu("Celkova doba v systemu", 10, 1, 5);
-
-class Transakce : public Process {
-    
-    void Behavior() {
-        
-        
-        double tvstup = Time;
-        double obsluha;
-        
-        //           O   \------------------------------
-        // |exp() -> O -> |seize -> O -> |exp() -> O -> |release -> O
-        Seize(Linka);
-        obsluha = Exponential(10);
-        Wait(obsluha); // Alternative: Activate(Time+obsluha);
-        dobaObsluhy(obsluha);
-        Release(Linka);
-        
-        dobaVSystemu(Time - tvstup);
-    }
-};
-
-class Generator : public Event {
-    void Behavior() {
-        (new Transakce)->Activate();
-        Activate(Time + Exponential(11));
-    }
-};
-
-
-int main(int argc, char* argv[]) {
-    
-    Init(0, 1000);
-    (new Generator)->Activate();
-    Run();
-    dobaObsluhy.Output();
-    Linka.Output();
-    dobaVSystemu.Output();
-    
-    return EXIT_SUCCESS;
-}
- */
