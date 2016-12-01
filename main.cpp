@@ -2,6 +2,9 @@
 #include <iostream>
 #include <functional>
 #include <simlib.h>
+#include <cmath>
+#include <iomanip>
+#include <sstream>
 
 #include "error.hpp"
 
@@ -25,51 +28,86 @@ using namespace std;
 #define LONG_QUEUE_DECISION_TIME    (MINUTES(20))
 //##################################################
 
-Queue* frontQueue();
+/** Converts seconds to human readable format */
+string time_to_string(double time) {
+    long seconds = round(time);
+    long sec = seconds % SEC_IN_MIN;
+    long min = (seconds / SEC_IN_MIN) % MIN_IN_HOUR;
+    long hour = (seconds / (MIN_IN_HOUR * SEC_IN_MIN));
+    
+    stringstream ss;
+    ss << std::setw(2) << std::setfill('0') << sec;
+    std::string s_sec(ss.str());
+    ss.str("");
+    ss << std::setw(2) << std::setfill('0') << min;
+    std::string s_min(ss.str());
+    ss.str("");
+    ss << std::setw(2) << std::setfill('0') << hour;
+    std::string s_hour(ss.str());
+    return s_hour + ":" + s_min + ":" + s_sec;
+}
 
-/** Settler store for settling customers */
+/** Prints message with simulation time prefix to stdout */
+void LogTime(string fmt, ...) {
+#if DEBUG
+    va_list list;
+    va_start(list, fmt);
+    string time = time_to_string(Time);
+    fprintf(stderr, "LOG: [%s]: " , time.c_str());
+    vfprintf(stderr, fmt.c_str(), list);
+    printf("\n");
+    va_end(list);
+#endif
+}
+
+/** Settlers' store */
 Store settlers("Usádzač", NUMBER_OF_SETTLERS);
-
-/**  */
+/** Waiters' store */
 Store waiters("Čašník", NUMBER_OF_WAITERS);
-
+/** Tables' store */
 Store tables("Stoly", NUMBER_OF_TABLES);
-
+/** Cookers' store */
 Store cookers("Kuchári", NUMBER_OF_COOKERS);
 
 Histogram peopleInSystem("Zákazníci v systéme", 0, 1, 10);
 
-class processOrder: public Process {
-
-public:
-    void Behavior()
-	{
-        double preparingTime;
-		// take cook to prepare meal for order
-		Enter(cookers);
-	    preparingTime = Uniform(MINUTES(15), MINUTES(30));
-		Log("Going to prepare food for %g ", preparingTime);
-        Wait(preparingTime);
-		Leave(cookers);
-		Log("Meal is ready");
-		// TODO somehow make priority to take waiter
-    }
-
-private:
-};
-
-/** General returning process */
-class Returning: public Process {
+/** General asynch process */
+class AsyncRoutine: public Process {
 public:
     
     // Create new instance of returning object and activate instatly
-    static Returning* activateInstance(double duration, Store& release_store, function<void()> callback = NULL) {
-        Returning* returning = new Returning(duration, release_store, callback);
-        returning->Activate();
-        return returning;
+    static AsyncRoutine* activateInstance(function<void(Process*)> func = NULL) {
+        AsyncRoutine* store_leaving = new AsyncRoutine(func);
+        store_leaving->Activate();
+        return store_leaving;
     }
     
-    Returning(double duration, Store& release_store, function<void()> callback):
+    AsyncRoutine(function<void(Process*)> func): func(func) {
+        // Empty
+    }
+    
+    void Behavior() {
+        // Perform function instantly
+        if (func) func(this);
+    }
+
+private:
+    function<void(Process*)> func;
+    
+};
+
+/** General store leaving process */
+class StoreLeaving: public Process {
+public:
+    
+    // Create new instance of returning object and activate instatly
+    static StoreLeaving* activateInstance(double duration, Store& release_store, function<void()> callback = NULL) {
+        StoreLeaving* store_leaving = new StoreLeaving(duration, release_store, callback);
+        store_leaving->Activate();
+        return store_leaving;
+    }
+    
+    StoreLeaving(double duration, Store& release_store, function<void()> callback):
         duration(duration), release_store(release_store), callback(callback) {
         // Empty
     }
@@ -92,27 +130,41 @@ private:
     
 };
 
-
-class ClientQueueLeaving: public Process {
+/** General system leaving process */
+class SystemLeaving: public Process {
 public:
-    ClientQueueLeaving(double t, Process *p) {
-        this->t = t;
-        this->p = p;
+    
+    // Create new instance of returning object and activate instatly
+    static SystemLeaving* activateInstance(double duration, Process* process, function<void(double)> callback = NULL) {
+        SystemLeaving* system_leaving = new SystemLeaving(duration, process, callback);
+        system_leaving->Activate();
+        return system_leaving;
+    }
+    
+    SystemLeaving(double duration, Process* process, function<void(double)> callback = NULL):
+        duration(duration), process(process), callback(callback) {
+        // Empty
     }
     
     void Behavior() {
-        Wait(t);
-        const unsigned int frontLength = settlers.Q->Length();
-        Log("[%.2f]: Client leaving because it takes too long (%.2f) (front: %i)", Time, t, frontLength - 1);
-        
+        Wait(duration);
         // People group leaving system
-        if (p) delete p;
-        p->Passivate();
+        if (process) {
+            delete process;
+        } else {
+            Warning("SystemLeaving has empty process");
+        }
+        // Perform callback if exists
+        if (callback) callback(duration);
     }
     
 private:
-    double t;
-    Process *p;
+    // Duration
+    double duration;
+    // Process to delete
+    Process* process;
+    // Callback after system leave
+    function<void(double)> callback;
 };
 
 
@@ -125,22 +177,26 @@ class PeopleGroup: public Process {
         double writingOrder;
         double distance;
         
+        LogTime("NEW customer %p has come", this);
+        
         const unsigned int frontLength = settlers.Q->Length();
         // People check front length and if it is too long
         if (frontLength > LONG_QUEUE_DECISION_SIZE) {
             // They decide to leave with chance
             double chance = Random();
             if (chance < LONG_QUEUE_DECISION_CHANGE) {
-                Log("[%.2f]: Client decided to leave, because front is too large (%i)", Time, frontLength);
+                LogTime("[CUSTOMER] Has decided to leave, because front is too large (%i)", frontLength);
                 return;
             }
         }
         
         // Setup timer to leave customer
-        ClientQueueLeaving* leavingTimer = new ClientQueueLeaving(LONG_QUEUE_DECISION_TIME, this);
-        leavingTimer->Activate();
+        SystemLeaving* system_leaving = SystemLeaving::activateInstance(LONG_QUEUE_DECISION_TIME, this, [](double duration) {
+            const unsigned int frontLength = settlers.Q->Length();
+            LogTime("[CUSTOMER] Is leaving because it takes too long (%s) (front: %i)", time_to_string(duration).c_str(), frontLength - 1);
+        });
         
-        Log("Customer INCOME QUEUE (%i)", settlers.Q->Length() + 1);
+        LogTime("[CUSTOMER] wait in queue (Queue: %i)", settlers.Q->Length() + 1);
         
         // Settler starts settling people group
         // TODO: Does it work correctly?
@@ -152,10 +208,10 @@ class PeopleGroup: public Process {
             Enter(settlers);
         }
         
-        Log("Customer IS SETTLING (%i)", settlers.Q->Length());
+        LogTime("[CUSTOMER] IS SETTLING (Queue: %i)", settlers.Q->Length());
         
         // Cancel customer leaving timer
-        delete leavingTimer;
+        delete system_leaving;
         
         // Generate distance time for taken table
         distance = Uniform(SECONDS(15), SECONDS(30));
@@ -164,10 +220,9 @@ class PeopleGroup: public Process {
         Wait(distance);
 
         // Settler returns to his position
-        Returning::activateInstance(distance, settlers);
+        StoreLeaving::activateInstance(distance, settlers);
         
-        // TODO: People are settled
-        Log("Customer SETTLED (tables: %i)", tables.Used());
+        LogTime("[CUSTOMER] is settled (Free tables: %i)", tables.Free());
 
         //============================================
         // WAITER PHASE 1: Menu
@@ -177,21 +232,21 @@ class PeopleGroup: public Process {
         // Waiter is going to table
 		Wait(distance);
         
-        Log("Customer has got MENU");
-        
         // Waiter is returning to his place
-        Returning::activateInstance(distance, waiters);
+        StoreLeaving::activateInstance(distance, waiters);
         //=============================================
-
+        
         choosingTime = Uniform(MINUTES(3), MINUTES(15));
+        
+        LogTime("[CUSTOMER] Started to choosing food (%s)", time_to_string(choosingTime).c_str());
         
         // Ordering time
         Wait(choosingTime);
         
-        Log("Customer has chosen a meal");
-        
         //=============================================
         // WAITER PHASE 2: Ordering
+        
+        LogTime("[CUSTOMER] Is waiting for waiter to order");
         
         // Waiter decided to go to table
         Enter(waiters);
@@ -204,16 +259,62 @@ class PeopleGroup: public Process {
         // Waiter is writing order
         Wait(writingOrder);
         
+        PeopleGroup* self = this;
         // Waiter is returning to his place
-        Returning::activateInstance(distance, waiters, []() {
-            // Place new order to the kitchen
-            (new processOrder())->Activate();
+        StoreLeaving::activateInstance(distance, waiters, [=]() {
+            
+            // Place new order to the kitchen after return
+            AsyncRoutine::activateInstance([=](Process* asynRoutine) {
+                double preparingTime;
+                
+                // Take cook to prepare meal for order
+                asynRoutine->Enter(cookers);
+                LogTime("[KITCHEN] Cooker started cooking (Free cookers: %i)", cookers.Free());
+                
+                preparingTime = MINUTES(60) + Uniform(MINUTES(15), MINUTES(30));
+                
+                LogTime("[KITCHEN] Prepare food for %s (%s)", self->Name(), time_to_string(preparingTime).c_str());
+                
+                // Preparing order
+                asynRoutine->Wait(preparingTime);
+                // Leave cookers
+                asynRoutine->Leave(cookers);
+                
+                LogTime("[KITCHEN] Meal is ready for %s", self->Name());
+                
+                // Set higher priority
+                self->Priority = 1;
+                // Reactivate customer
+                self->Activate();
+            });
+            
         });
         //=============================================
         
-        Log("Customer is waiting for a meal");
-
-        // TODO: Leave(tables);
+        LogTime("[CUSTOMER] is waiting for a meal");
+        
+        // Freez process
+        Passivate();
+        
+        //=============================================
+        // WAITER PHASE 3: Meal
+        
+        // Waiter decided to go to table
+        Enter(waiters);
+        // Waiter is going to table
+        Wait(distance);
+        // Reset priority
+        Priority = 0;
+        //=============================================
+        
+        LogTime("[CUSTOMER] Has got his meal (%s)", Name());
+        
+        // TODO: Phase 4 PAY
+        
+        // Leave table
+        Leave(tables);
+        
+        LogTime("[CUSTOMER] %s LEAVING TABLE (Free tables: %i)", Name(), tables.Free());
         
         const double timeInSystem = Time - tvstup;
         peopleInSystem(timeInSystem);
@@ -252,7 +353,7 @@ int main(int argc, char* argv[]) {
     // Initialize simulation
     Init(startingTime, endTime);
     // Start generator with exponential time interval
-    (new PeopleGenerator(MINUTES(1)))->Activate();
+    (new PeopleGenerator(MINUTES(100)))->Activate();
     // Run simulation
     Run();
     
