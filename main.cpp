@@ -177,7 +177,7 @@ class PeopleGroup: public Process {
         double writingOrder;
         double distance;
         
-        LogTime("NEW customer %p has come", this);
+        LogTime("[CUSTOMER: %s] Has arrived", Name());
         
         const unsigned int frontLength = settlers.Q->Length();
         // People check front length and if it is too long
@@ -185,7 +185,7 @@ class PeopleGroup: public Process {
             // They decide to leave with chance
             double chance = Random();
             if (chance < LONG_QUEUE_DECISION_CHANGE) {
-                LogTime("[CUSTOMER] Has decided to leave, because front is too large (%i)", frontLength);
+                LogTime("[CUSTOMER: %s] Has decided to leave, because front is too large (%i)", Name(), frontLength);
                 return;
             }
         }
@@ -196,7 +196,7 @@ class PeopleGroup: public Process {
             LogTime("[CUSTOMER] Is leaving because it takes too long (%s) (front: %i)", time_to_string(duration).c_str(), frontLength - 1);
         });
         
-        LogTime("[CUSTOMER] wait in queue (Queue: %i)", settlers.Q->Length() + 1);
+        LogTime("[CUSTOMER: %s] wait in queue (Queue: %i)", Name(), settlers.Q->Length() + 1);
         
         // Settler starts settling people group
         // TODO: Does it work correctly?
@@ -208,7 +208,7 @@ class PeopleGroup: public Process {
             Enter(settlers);
         }
         
-        LogTime("[CUSTOMER] IS SETTLING (Queue: %i)", settlers.Q->Length());
+        LogTime("[CUSTOMER: %s] Is settling (Queue: %i)", Name(), settlers.Q->Length());
         
         // Cancel customer leaving timer
         delete system_leaving;
@@ -222,7 +222,7 @@ class PeopleGroup: public Process {
         // Settler returns to his position
         StoreLeaving::activateInstance(distance, settlers);
         
-        LogTime("[CUSTOMER] is settled (Free tables: %i)", tables.Free());
+        LogTime("[CUSTOMER: %s] is settled (Free tables: %i)", Name(), tables.Free());
 
         //============================================
         // WAITER PHASE 1: Menu
@@ -238,7 +238,7 @@ class PeopleGroup: public Process {
         
         choosingTime = Uniform(MINUTES(3), MINUTES(15));
         
-        LogTime("[CUSTOMER] Started to choosing food (%s)", time_to_string(choosingTime).c_str());
+        LogTime("[CUSTOMER: %s] Started to choose meal (%s)", Name(), time_to_string(choosingTime).c_str());
         
         // Ordering time
         Wait(choosingTime);
@@ -246,7 +246,7 @@ class PeopleGroup: public Process {
         //=============================================
         // WAITER PHASE 2: Ordering
         
-        LogTime("[CUSTOMER] Is waiting for waiter to order");
+        LogTime("[CUSTOMER: %s] Is waiting for waiter to order", Name());
         
         // Waiter decided to go to table
         Enter(waiters);
@@ -269,18 +269,18 @@ class PeopleGroup: public Process {
                 
                 // Take cook to prepare meal for order
                 asynRoutine->Enter(cookers);
-                LogTime("[KITCHEN] Cooker started cooking (Free cookers: %i)", cookers.Free());
+                LogTime("[COOKER: %s] Has started cooking (Free cookers: %i)", asynRoutine->Name(), cookers.Free());
                 
                 preparingTime = MINUTES(60) + Uniform(MINUTES(15), MINUTES(30));
                 
-                LogTime("[KITCHEN] Prepare food for %s (%s)", self->Name(), time_to_string(preparingTime).c_str());
+                LogTime("[COOKER: %s] Prepare food for %s (%s)", asynRoutine->Name(), self->Name(), time_to_string(preparingTime).c_str());
                 
                 // Preparing order
                 asynRoutine->Wait(preparingTime);
                 // Leave cookers
                 asynRoutine->Leave(cookers);
                 
-                LogTime("[KITCHEN] Meal is ready for %s", self->Name());
+                LogTime("[COOKER: %s] Meal is ready for %s", asynRoutine->Name(), self->Name());
                 
                 // Set higher priority
                 self->Priority = 1;
@@ -291,7 +291,7 @@ class PeopleGroup: public Process {
         });
         //=============================================
         
-        LogTime("[CUSTOMER] is waiting for a meal");
+        LogTime("[CUSTOMER: %s] Has ordered and is waiting for a meal",  Name());
         
         // Freez process
         Passivate();
@@ -307,14 +307,14 @@ class PeopleGroup: public Process {
         Priority = 0;
         //=============================================
         
-        LogTime("[CUSTOMER] Has got his meal (%s)", Name());
+        LogTime("[CUSTOMER: %s] Has got his meal", Name());
         
         // TODO: Phase 4 PAY
         
         // Leave table
         Leave(tables);
         
-        LogTime("[CUSTOMER] %s LEAVING TABLE (Free tables: %i)", Name(), tables.Free());
+        LogTime("[CUSTOMER: %s] Leaving table (Free tables: %i)", Name(), tables.Free());
         
         const double timeInSystem = Time - tvstup;
         peopleInSystem(timeInSystem);
