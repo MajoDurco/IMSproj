@@ -1,6 +1,6 @@
 
 #include <iostream>
-
+#include <functional>
 #include <simlib.h>
 
 #include "error.hpp"
@@ -58,27 +58,38 @@ public:
 private:
 };
 
+/** General returning process */
 class Returning: public Process {
 public:
     
-    Returning(double t, Store &release_store, bool order=false) {
-        this->t = t;
-		this->release_store = release_store;
-		this->order = order;
+    // Create new instance of returning object and activate instatly
+    static Returning* activateInstance(double duration, Store& release_store, function<void()> callback = NULL) {
+        Returning* returning = new Returning(duration, release_store, callback);
+        returning->Activate();
+        return returning;
+    }
+    
+    Returning(double duration, Store& release_store, function<void()> callback):
+        duration(duration), release_store(release_store), callback(callback) {
+        // Empty
     }
     
     void Behavior() {
-        Wait(t);
-        // Settler is free for taking another group of people
-		if(order)
-			(new processOrder())->Activate(); // place order to the kitchen
-        Leave(*release_store);
+        Wait(duration);
+        // Leave store
+        Leave(release_store);
+        // Perform callback if exists
+        if (callback) callback();
     }
     
 private:
-    double t;
-	Store *release_store;
-	bool order;
+    // Duration
+    double duration;
+    // Store to leave
+	Store& release_store;
+    // Callback after leave
+    function<void()> callback;
+    
 };
 
 
@@ -96,6 +107,7 @@ public:
         
         // People group leaving system
         if (p) delete p;
+        p->Passivate();
     }
     
 private:
@@ -109,9 +121,9 @@ class PeopleGroup: public Process {
     
     void Behavior() {
         double tvstup = Time;
-        double settlingTime;
 		double choosingTime;
         double writingOrder;
+        double distance;
         
         const unsigned int frontLength = settlers.Q->Length();
         // People check front length and if it is too long
@@ -131,6 +143,7 @@ class PeopleGroup: public Process {
         Log("Customer INCOME QUEUE (%i)", settlers.Q->Length() + 1);
         
         // Settler starts settling people group
+        // TODO: Does it work correctly?
         if (!tables.Empty()) {
             Enter(settlers);
             Enter(tables);
@@ -141,31 +154,63 @@ class PeopleGroup: public Process {
         
         Log("Customer IS SETTLING (%i)", settlers.Q->Length());
         
+        // Cancel customer leaving timer
         delete leavingTimer;
         
+        // Generate distance time for taken table
+        distance = Uniform(SECONDS(15), SECONDS(30));
+        
         // Settler is navigating people to their table
-        settlingTime = Uniform(MINUTES(1), MINUTES(2));
-        Wait(settlingTime);
+        Wait(distance);
 
         // Settler returns to his position
-        (new Returning(settlingTime, settlers))->Activate();
+        Returning::activateInstance(distance, settlers);
         
         // TODO: People are settled
         Log("Customer SETTLED (tables: %i)", tables.Used());
 
+        //============================================
+        // WAITER PHASE 1: Menu
+        
+        // Waiter decided to go to table
         Enter(waiters);
-		Wait(SECONDS(30));
+        // Waiter is going to table
+		Wait(distance);
+        
         Log("Customer has got MENU");
-        (new Returning(SECONDS(30), waiters))->Activate();
+        
+        // Waiter is returning to his place
+        Returning::activateInstance(distance, waiters);
+        //=============================================
 
         choosingTime = Uniform(MINUTES(3), MINUTES(15));
+        
+        // Ordering time
         Wait(choosingTime);
+        
         Log("Customer has chosen a meal");
+        
+        //=============================================
+        // WAITER PHASE 2: Ordering
+        
+        // Waiter decided to go to table
         Enter(waiters);
-		Wait(SECONDS(30));
+        // Waiter is going to table
+		Wait(distance);
+        
+        // Generate writing order time
         writingOrder = Uniform(SECONDS(15), SECONDS(60));
+        
+        // Waiter is writing order
         Wait(writingOrder);
-        (new Returning(SECONDS(30), waiters, true))->Activate();
+        
+        // Waiter is returning to his place
+        Returning::activateInstance(distance, waiters, []() {
+            // Place new order to the kitchen
+            (new processOrder())->Activate();
+        });
+        //=============================================
+        
         Log("Customer is waiting for a meal");
 
         // TODO: Leave(tables);
