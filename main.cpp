@@ -35,9 +35,8 @@ using namespace std;
 #define NUMBER_OF_TABLES    32
 #define NUMBER_OF_COOKERS   10
 
-#define LONG_QUEUE_DECISION_SIZE    20
+#define LONG_QUEUE_DECISION_SIZE    5
 #define LONG_QUEUE_DECISION_CHANCE  0.2
-#define LONG_QUEUE_DECISION_TIME    MINUTES(20)
 
 #define REORDER_CHANGE      0.5
 //##################################################
@@ -46,32 +45,37 @@ using namespace std;
 
 static bool HOT_HOURS = false;
 
-/**  */
+/** Preparing order time */
 inline double calculateOrderPreparingTime() {
     return Uniform(MINUTES(15), MINUTES(35));
 }
 
-/**  */
+/** Customer eating duration */
 inline double calculcateEatTime() {
-    return Uniform(MINUTES(10), MINUTES(35));
+    return Uniform(MINUTES(15), MINUTES(20));
 }
 
-/**  */
+/** Waiter's walking time to table */
 inline double calculateDistanceTime() {
-    return Uniform(SECONDS(7), SECONDS(15));
+    return Uniform(SECONDS(8), SECONDS(20));
 }
 
-/**  */
+/** Waiter writing order time */
 inline double calculateWritingOrderTime() {
-    return Uniform(SECONDS(15), SECONDS(60));
+    return Uniform(SECONDS(15), SECONDS(75));
 }
 
-/**  */
+/** Customer choosing time */
 inline double calculateChoosingTime() {
     return Uniform(MINUTES(2), MINUTES(7));
 }
 
-/**  */
+/** Customer leave decision time */
+inline double calculateDecisionTime() {
+    return Uniform(MINUTES(15), MINUTES(20));
+}
+
+/** Entering time */
 inline double calculateEnterTime() {
     if (HOT_HOURS) {
         return Uniform(MINUTES(1), MINUTES(5));
@@ -222,7 +226,6 @@ private:
     function<void(double)> callback;
 };
 
-
 /** Class representing people gruop incoming to restaurant */
 class PeopleGroup: public Process {
 public:
@@ -257,7 +260,7 @@ public:
         }
         
         // Setup timer to leave customer
-        SystemLeaving* system_leaving = SystemLeaving::activateInstance(LONG_QUEUE_DECISION_TIME, this, [](double duration) {
+        SystemLeaving* system_leaving = SystemLeaving::activateInstance(calculateDecisionTime(), this, [](double duration) {
             const unsigned int frontLength = settlers.Q->Length();
             LogTime("[CUSTOMER] Is leaving because it takes too long (%s) (front: %i)", time_to_string(duration).c_str(), frontLength - 1);
         });
