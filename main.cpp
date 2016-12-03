@@ -83,7 +83,8 @@ inline double calculateDecisionTime() {
 /** Entering time */
 inline double calculateEnterTime() {
     if (HOT_HOURS) {
-        return Uniform(MINUTES(1), MINUTES(4));
+        return Exponential(MINUTES(3));
+        //return Uniform(MINUTES(1), MINUTES(4));
     } else {
         return Uniform(MINUTES(3), MINUTES(12));
     }
