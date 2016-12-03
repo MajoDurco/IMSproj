@@ -33,7 +33,7 @@ using namespace std;
 #define NUMBER_OF_SETTLERS  1
 #define NUMBER_OF_WAITERS   3
 #define NUMBER_OF_TABLES    32
-#define NUMBER_OF_COOKERS   10
+#define NUMBER_OF_COOKERS   12
 
 #define LONG_QUEUE_DECISION_SIZE    5
 #define LONG_QUEUE_DECISION_CHANCE  0.2
@@ -43,11 +43,16 @@ using namespace std;
 
 //##################################################
 
+// Flag if its hot hour
 static bool HOT_HOURS = false;
 
 /** Preparing order time */
-inline double calculateOrderPreparingTime() {
-    return Uniform(MINUTES(15), MINUTES(35));
+inline double calculateOrderPreparingTime(bool desert) {
+    if (desert) {
+        return Uniform(MINUTES(3), MINUTES(10));
+    } else {
+        return Uniform(MINUTES(15), MINUTES(35));
+    }
 }
 
 /** Customer eating duration */
@@ -67,7 +72,7 @@ inline double calculateWritingOrderTime() {
 
 /** Customer choosing time */
 inline double calculateChoosingTime() {
-    return Uniform(MINUTES(2), MINUTES(7));
+    return Uniform(MINUTES(2), MINUTES(5));
 }
 
 /** Customer leave decision time */
@@ -78,7 +83,7 @@ inline double calculateDecisionTime() {
 /** Entering time */
 inline double calculateEnterTime() {
     if (HOT_HOURS) {
-        return Uniform(MINUTES(1), MINUTES(5));
+        return Uniform(MINUTES(1), MINUTES(4));
     } else {
         return Uniform(MINUTES(3), MINUTES(12));
     }
@@ -342,7 +347,7 @@ public:
                     asynRoutine->Enter(cookers);
                     LogTime("[COOKER: %s] Has started cooking (Free cookers: %i)", asynRoutine->Name(), cookers.Free());
                     
-                    preparingTime = calculateOrderPreparingTime();
+                    preparingTime = calculateOrderPreparingTime(!reorderCount);
                     
                     LogTime("[COOKER: %s] Prepare food for %s (%s)", asynRoutine->Name(), self->getID(), time_to_string(preparingTime).c_str());
                     
