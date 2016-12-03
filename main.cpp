@@ -18,14 +18,67 @@ using namespace std;
 #define HOURS(x)    (x * MIN_IN_HOUR * SEC_IN_MIN)
 
 //##################################################
+
+/* Restaurant (default)
+ Opening time               10:00 - 22:30 (12.5 hours)
+ Observe time               17:00 - 22:30 (5.5 hours)
+ Hot hours (more customers) 17:00 - 21:30 (4.5 hours)
+ */
+
+#define SYM_BEGIN_TIME          HOURS(10)   // 10:00
+#define SYM_DURATION_TIME       HOURS(12.5) // 22:30
+#define SYM_HOT_HOUR_BEGIN      HOURS(17)   // 17:00
+#define SYM_HOT_HOUR_DURATION   HOURS(4.5)  // 21:30
+
 #define NUMBER_OF_SETTLERS  1
 #define NUMBER_OF_WAITERS   3
-#define NUMBER_OF_TABLES    40
-#define NUMBER_OF_COOKERS   2
+#define NUMBER_OF_TABLES    32
+#define NUMBER_OF_COOKERS   10
 
-#define LONG_QUEUE_DECISION_SIZE    (20)
-#define LONG_QUEUE_DECISION_CHANGE  (0.2)
-#define LONG_QUEUE_DECISION_TIME    (MINUTES(20))
+#define LONG_QUEUE_DECISION_SIZE    20
+#define LONG_QUEUE_DECISION_CHANCE  0.2
+#define LONG_QUEUE_DECISION_TIME    MINUTES(20)
+
+#define REORDER_CHANGE      0.5
+//##################################################
+
+//##################################################
+
+static bool HOT_HOURS = false;
+
+/**  */
+inline double calculateOrderPreparingTime() {
+    return Uniform(MINUTES(15), MINUTES(35));
+}
+
+/**  */
+inline double calculcateEatTime() {
+    return Uniform(MINUTES(10), MINUTES(35));
+}
+
+/**  */
+inline double calculateDistanceTime() {
+    return Uniform(SECONDS(7), SECONDS(15));
+}
+
+/**  */
+inline double calculateWritingOrderTime() {
+    return Uniform(SECONDS(15), SECONDS(60));
+}
+
+/**  */
+inline double calculateChoosingTime() {
+    return Uniform(MINUTES(2), MINUTES(7));
+}
+
+/**  */
+inline double calculateEnterTime() {
+    if (HOT_HOURS) {
+        return Uniform(MINUTES(1), MINUTES(5));
+    } else {
+        return Uniform(MINUTES(3), MINUTES(12));
+    }
+}
 //##################################################
 
 /** Converts seconds to human readable format */
@@ -69,7 +122,9 @@ Store tables("Stoly", NUMBER_OF_TABLES);
 /** Cookers' store */
 Store cookers("Kuchári", NUMBER_OF_COOKERS);
 
-Histogram peopleInSystem("Zákazníci v systéme", 0, 1, 10);
+Histogram peopleEnteringSystem("Enter", SYM_BEGIN_TIME, HOURS(1), 13);
+//Histogram peopleEnteringHotHourSystem("Hot hours", SYM_HOT_HOUR_BEGIN, (SYM_BEGIN_TIME + SYM_DURATION_TIME - SYM_HOT_HOUR_BEGIN) / 10.0, 10);
+Histogram peopleInSystem("Zákazníci v systéme", 0, MINUTES(15), 4 * 3);
 
 /** General asynch process */
 class AsyncRoutine: public Process {
@@ -90,7 +145,7 @@ public:
         // Perform function instantly
         if (func) func(this);
     }
-
+    
 private:
     function<void(Process*)> func;
     
@@ -108,7 +163,7 @@ public:
     }
     
     StoreLeaving(double duration, Store& release_store, function<void()> callback):
-        duration(duration), release_store(release_store), callback(callback) {
+    duration(duration), release_store(release_store), callback(callback) {
         // Empty
     }
     
@@ -124,7 +179,7 @@ private:
     // Duration
     double duration;
     // Store to leave
-	Store& release_store;
+    Store& release_store;
     // Callback after leave
     function<void()> callback;
     
@@ -142,7 +197,7 @@ public:
     }
     
     SystemLeaving(double duration, Process* process, function<void(double)> callback = NULL):
-        duration(duration), process(process), callback(callback) {
+    duration(duration), process(process), callback(callback) {
         // Empty
     }
     
@@ -170,22 +225,33 @@ private:
 
 /** Class representing people gruop incoming to restaurant */
 class PeopleGroup: public Process {
+public:
+    PeopleGroup() {
+        uniqueID = ++GLOBAL_COUNT;
+        name = to_string(uniqueID);
+    }
     
     void Behavior() {
-        double tvstup = Time;
-		double choosingTime;
+        const double tvstup = Time;
+        double choosingTime;
         double writingOrder;
         double distance;
+        double eatingTime;
+        int reorderCount = 1;
+        double payTime;
+        bool reorder = false;
         
-        LogTime("[CUSTOMER: %s] Has arrived", Name());
+        peopleEnteringSystem(Time);
+        
+        LogTime("[CUSTOMER: %s] Has arrived", getID());
         
         const unsigned int frontLength = settlers.Q->Length();
         // People check front length and if it is too long
         if (frontLength > LONG_QUEUE_DECISION_SIZE) {
             // They decide to leave with chance
             double chance = Random();
-            if (chance < LONG_QUEUE_DECISION_CHANGE) {
-                LogTime("[CUSTOMER: %s] Has decided to leave, because front is too large (%i)", Name(), frontLength);
+            if (chance < LONG_QUEUE_DECISION_CHANCE) {
+                LogTime("[CUSTOMER: %s] Has decided to leave, because front is too large (%i)", getID(), frontLength);
                 return;
             }
         }
@@ -196,7 +262,7 @@ class PeopleGroup: public Process {
             LogTime("[CUSTOMER] Is leaving because it takes too long (%s) (front: %i)", time_to_string(duration).c_str(), frontLength - 1);
         });
         
-        LogTime("[CUSTOMER: %s] wait in queue (Queue: %i)", Name(), settlers.Q->Length() + 1);
+        LogTime("[CUSTOMER: %s] wait in queue (Queue: %i)", getID(), settlers.Q->Length() + 1);
         
         // Settler starts settling people group
         // TODO: Does it work correctly?
@@ -208,152 +274,210 @@ class PeopleGroup: public Process {
             Enter(settlers);
         }
         
-        LogTime("[CUSTOMER: %s] Is settling (Queue: %i)", Name(), settlers.Q->Length());
+        LogTime("[CUSTOMER: %s] Is settling (Queue: %i)", getID(), settlers.Q->Length());
         
         // Cancel customer leaving timer
         delete system_leaving;
         
         // Generate distance time for taken table
-        distance = Uniform(SECONDS(15), SECONDS(30));
+        distance = calculateDistanceTime();
         
         // Settler is navigating people to their table
         Wait(distance);
-
+        
         // Settler returns to his position
         StoreLeaving::activateInstance(distance, settlers);
         
-        LogTime("[CUSTOMER: %s] is settled (Free tables: %i)", Name(), tables.Free());
-
+        LogTime("[CUSTOMER: %s] is settled (Free tables: %i)", getID(), tables.Free());
+        
         //============================================
         // WAITER PHASE 1: Menu
         
         // Waiter decided to go to table
         Enter(waiters);
         // Waiter is going to table
-		Wait(distance);
+        Wait(distance);
         
         // Waiter is returning to his place
         StoreLeaving::activateInstance(distance, waiters);
         //=============================================
         
-        choosingTime = Uniform(MINUTES(3), MINUTES(15));
+        choosingTime = calculateChoosingTime();
         
-        LogTime("[CUSTOMER: %s] Started to choose meal (%s)", Name(), time_to_string(choosingTime).c_str());
+        LogTime("[CUSTOMER: %s] Started to choose meal (%s)", getID(), time_to_string(choosingTime).c_str());
         
         // Ordering time
         Wait(choosingTime);
         
-        //=============================================
-        // WAITER PHASE 2: Ordering
-        
-        LogTime("[CUSTOMER: %s] Is waiting for waiter to order", Name());
-        
-        // Waiter decided to go to table
-        Enter(waiters);
-        // Waiter is going to table
-		Wait(distance);
-        
-        // Generate writing order time
-        writingOrder = Uniform(SECONDS(15), SECONDS(60));
-        
-        // Waiter is writing order
-        Wait(writingOrder);
-        
-        PeopleGroup* self = this;
-        // Waiter is returning to his place
-        StoreLeaving::activateInstance(distance, waiters, [=]() {
+        // Here comes customer who wants some dezert at the end
+        do {
+            //=============================================
+            // WAITER PHASE 2: Ordering
             
-            // Place new order to the kitchen after return
-            AsyncRoutine::activateInstance([=](Process* asynRoutine) {
-                double preparingTime;
+            LogTime("[CUSTOMER: %s] Is waiting for waiter to order", getID());
+            
+            // Waiter decided to go to table
+            Enter(waiters);
+            // Waiter is going to table
+            Wait(distance);
+            
+            // Generate writing order time
+            writingOrder = calculateWritingOrderTime();
+            
+            // Waiter is writing order
+            Wait(writingOrder);
+            
+            PeopleGroup* self = this;
+            // Waiter is returning to his place
+            StoreLeaving::activateInstance(distance, waiters, [=]() {
                 
-                // Take cook to prepare meal for order
-                asynRoutine->Enter(cookers);
-                LogTime("[COOKER: %s] Has started cooking (Free cookers: %i)", asynRoutine->Name(), cookers.Free());
+                // Place new order to the kitchen after return
+                AsyncRoutine::activateInstance([=](Process* asynRoutine) {
+                    double preparingTime;
+                    
+                    // Take cook to prepare meal for order
+                    asynRoutine->Enter(cookers);
+                    LogTime("[COOKER: %s] Has started cooking (Free cookers: %i)", asynRoutine->Name(), cookers.Free());
+                    
+                    preparingTime = calculateOrderPreparingTime();
+                    
+                    LogTime("[COOKER: %s] Prepare food for %s (%s)", asynRoutine->Name(), self->getID(), time_to_string(preparingTime).c_str());
+                    
+                    // Preparing order
+                    asynRoutine->Wait(preparingTime);
+                    // Leave cookers
+                    asynRoutine->Leave(cookers);
+                    
+                    LogTime("[COOKER: %s] Meal is ready for %s", asynRoutine->Name(), self->getID());
+                    
+                    // Set higher priority
+                    self->Priority = 1;
+                    // Reactivate customer
+                    self->Activate();
+                });
                 
-                preparingTime = MINUTES(60) + Uniform(MINUTES(15), MINUTES(30));
-                
-                LogTime("[COOKER: %s] Prepare food for %s (%s)", asynRoutine->Name(), self->Name(), time_to_string(preparingTime).c_str());
-                
-                // Preparing order
-                asynRoutine->Wait(preparingTime);
-                // Leave cookers
-                asynRoutine->Leave(cookers);
-                
-                LogTime("[COOKER: %s] Meal is ready for %s", asynRoutine->Name(), self->Name());
-                
-                // Set higher priority
-                self->Priority = 1;
-                // Reactivate customer
-                self->Activate();
             });
+            //=============================================
             
-        });
+            LogTime("[CUSTOMER: %s] Has ordered and is waiting for a meal",  getID());
+            
+            // Freez process
+            Passivate();
+            
+            //=============================================
+            // WAITER PHASE 3: Meal
+            
+            // Waiter decided to go to table
+            Enter(waiters);
+            // Waiter is going to table
+            Wait(distance);
+            // Reset priority
+            Priority = 0;
+            //=============================================
+            
+            LogTime("[CUSTOMER: %s] Has got his meal", getID());
+            
+            // Waiter is returning to his place
+            StoreLeaving::activateInstance(distance, waiters);
+            
+            // Calculate eating time
+            eatingTime = calculcateEatTime();
+            // Eating time
+            Wait(eatingTime);
+            
+            // Calculate chance and check if customer wants some desert
+            reorder = ((reorderCount--) && Random() < REORDER_CHANGE);
+            
+        } while (reorder);
+        
         //=============================================
-        
-        LogTime("[CUSTOMER: %s] Has ordered and is waiting for a meal",  Name());
-        
-        // Freez process
-        Passivate();
-        
-        //=============================================
-        // WAITER PHASE 3: Meal
+        // WAITER PHASE 4: Payment
         
         // Waiter decided to go to table
         Enter(waiters);
         // Waiter is going to table
         Wait(distance);
-        // Reset priority
-        Priority = 0;
-        //=============================================
         
-        LogTime("[CUSTOMER: %s] Has got his meal", Name());
+        // Calculate pay time
+        payTime = MINUTES(1);
+        // Customer is paying
+        Wait(payTime);
         
-        // TODO: Phase 4 PAY
+        LogTime("[CUSTOMER: %s] Has paid", getID(), tables.Free());
+        
+        // Waiter is returning to his place
+        StoreLeaving::activateInstance(distance, waiters);
         
         // Leave table
         Leave(tables);
         
-        LogTime("[CUSTOMER: %s] Leaving table (Free tables: %i)", Name(), tables.Free());
+        // Customer leaving restaurant
+        Wait(distance);
         
-        const double timeInSystem = Time - tvstup;
-        peopleInSystem(timeInSystem);
+        LogTime("[CUSTOMER: %s] Leaving table (Free tables: %i)", getID(), tables.Free());
+        //=============================================
+        
+        // Caculate overal time in system
+        if (HOT_HOURS) {
+            const double timeInSystem = Time - tvstup;
+            peopleInSystem(timeInSystem);
+        }
+    }
+    
+    const char* getID() {
+        return name.c_str();
+    }
+    
+private:
+    // Global customer group counter
+    static unsigned int GLOBAL_COUNT;
+    // Unique id of customer
+    unsigned int uniqueID;
+    // Name
+    string name;
+};
+
+unsigned int PeopleGroup::GLOBAL_COUNT = 0;
+
+/** Generating people group to system */
+class PeopleGenerator: public Event {
+    
+    void Behavior() {
+        double interval = calculateEnterTime();
+        // Wait for seconds
+        Activate(Time + interval);
+        // Generate new people group
+        (new PeopleGroup)->Activate();
     }
 };
 
 /** Generating people group to system */
-class PeopleGenerator: public Event {
-public:
-    PeopleGenerator(): PeopleGenerator(0) {}
-    PeopleGenerator(double exp_time): exp_time(exp_time) {}
-    
-private:
-    // Exponential interval time
-    double exp_time;
-    
+class HotHour: public Process {
     void Behavior() {
         // Wait for seconds
-        Activate(Time + Exponential(exp_time));
-        // Generate new people group
-        (new PeopleGroup)->Activate();
+        Activate(SYM_HOT_HOUR_BEGIN);
+        
+        HOT_HOURS = true;
+        Log("************* HOT HOURS BEGIN *************");
+        
+        Wait(SYM_HOT_HOUR_DURATION);
+        
+        HOT_HOURS = false;
+        Log("************* HOT HOURS END *************");
     }
 };
 
 /** Main function */
 int main(int argc, char* argv[]) {
     
-    /* Restaurant
-     Observe time:      11:00 - 13:30 (2.5 hours)
-        Observing start time:   0 hours
-        Observing end time:     2.5 hours
-     */
-    const double startingTime = 0;      // From 11:00
-    const double endTime = HOURS(2.5);  // To   13:30
+    const double startingTime = SYM_BEGIN_TIME;
+    const double endTime = startingTime + SYM_DURATION_TIME;
     
     // Initialize simulation
     Init(startingTime, endTime);
+    (new HotHour)->Activate();
     // Start generator with exponential time interval
-    (new PeopleGenerator(MINUTES(100)))->Activate();
+    (new PeopleGenerator())->Activate();
     // Run simulation
     Run();
     
@@ -361,7 +485,11 @@ int main(int argc, char* argv[]) {
     // Print results
     
     settlers.Output();
+    waiters.Output();
+    cookers.Output();
+    tables.Output();
     peopleInSystem.Output();
+    peopleEnteringSystem.Output();
     
     return EXIT_SUCCESS;
 }
