@@ -1,0 +1,10 @@
+Experimenty:
+
+1. Expreiment zvojnasobenia prichodu zakaznikov, odsledovať ktorá časť reštaurácie je najslabším článkom, komu zo zamestnancov sa bude nabalovať robota. Poprípade čo by bolo riešením.
+
+2. Experiment odchodu alebo nepritonosti jedneho alebo dvoch čašníkov a aký dopad by to malo na beh reštaurácie.
+
+3. Experiment nešikovného kuchára kde sa zvojnásobí čas prípravi jedla, v prípade že varí pomaly alebo sa mu jedlo spáli. Dopad a spokojnosť zákazníkov z časového hladiska.
+
+4. Redundancia zamestnansov v málo navštevovaných dňoch (napríklad zvojnásobenie časového intervalu príchodu medzi zákazníkmi). Ktorá rola zamestnanca je redundantná bez vplivu na normálny beh reštaurácie a kolko by ich nemuselo prísť do práce.
+
