@@ -18,22 +18,15 @@ using namespace std;
 #define HOURS(x)    (x * MIN_IN_HOUR * SEC_IN_MIN)
 
 //##################################################
-
-/* Restaurant (default)
- Opening time               10:00 - 22:30 (12.5 hours)
- Observe time               17:00 - 22:30 (5.5 hours)
- Hot hours (more customers) 17:00 - 21:30 (4.5 hours)
- */
-
-#define SYM_BEGIN_TIME          HOURS(10)   // 10:00
-#define SYM_DURATION_TIME       HOURS(12.5) // 22:30
-#define SYM_HOT_HOUR_BEGIN      HOURS(17)   // 17:00
-#define SYM_HOT_HOUR_DURATION   HOURS(4.5)  // 21:30
+#define SYM_BEGIN_TIME          HOURS(11)   // 11:00
+#define SYM_DURATION_TIME       HOURS(3)    // 14:00
+#define SYM_HOT_HOUR_BEGIN      HOURS(11)   // 11:00
+#define SYM_HOT_HOUR_DURATION   HOURS(3)    // 14:00
 
 #define NUMBER_OF_SETTLERS  1
 #define NUMBER_OF_WAITERS   3
-#define NUMBER_OF_TABLES    32
-#define NUMBER_OF_COOKERS   12
+#define NUMBER_OF_TABLES    24
+#define NUMBER_OF_COOKERS   6
 
 #define LONG_QUEUE_DECISION_SIZE    5
 #define LONG_QUEUE_DECISION_CHANCE  0.2
@@ -41,23 +34,24 @@ using namespace std;
 #define REORDER_CHANGE      0.5
 //##################################################
 
-//##################################################
 
+
+//##################################################
 // Flag if its hot hour
 static bool HOT_HOURS = false;
 
 /** Preparing order time */
 inline double calculateOrderPreparingTime(bool desert) {
     if (desert) {
-        return Uniform(MINUTES(3), MINUTES(10));
+        return Uniform(MINUTES(3), MINUTES(5));
     } else {
-        return Uniform(MINUTES(15), MINUTES(35));
+        return Uniform(MINUTES(10), MINUTES(20));
     }
 }
 
 /** Customer eating duration */
 inline double calculcateEatTime() {
-    return Uniform(MINUTES(15), MINUTES(20));
+    return Uniform(MINUTES(10), MINUTES(20));
 }
 
 /** Waiter's walking time to table */
@@ -67,7 +61,7 @@ inline double calculateDistanceTime() {
 
 /** Waiter writing order time */
 inline double calculateWritingOrderTime() {
-    return Uniform(SECONDS(15), SECONDS(75));
+    return Uniform(SECONDS(15), SECONDS(60));
 }
 
 /** Customer choosing time */
@@ -83,8 +77,8 @@ inline double calculateDecisionTime() {
 /** Entering time */
 inline double calculateEnterTime() {
     if (HOT_HOURS) {
-        return Exponential(MINUTES(3));
-        //return Uniform(MINUTES(1), MINUTES(4));
+        //return Exponential(MINUTES(2));
+        return Uniform(MINUTES(1), MINUTES(4));
     } else {
         return Uniform(MINUTES(3), MINUTES(12));
     }
@@ -132,9 +126,8 @@ Store tables("Stoly", NUMBER_OF_TABLES);
 /** Cookers' store */
 Store cookers("Kuchári", NUMBER_OF_COOKERS);
 
-Histogram peopleEnteringSystem("Enter", SYM_BEGIN_TIME, HOURS(1), 13);
-//Histogram peopleEnteringHotHourSystem("Hot hours", SYM_HOT_HOUR_BEGIN, (SYM_BEGIN_TIME + SYM_DURATION_TIME - SYM_HOT_HOUR_BEGIN) / 10.0, 10);
-Histogram peopleInSystem("Zákazníci v systéme", 0, MINUTES(15), 4 * 3);
+Histogram peopleEnteringSystem("Príchod zákazníkov", SYM_BEGIN_TIME, HOURS(0.5), 8);
+Histogram peopleInSystem("Zákazníci v systéme", 0, MINUTES(10), 10);
 
 /** General asynch process */
 class AsyncRoutine: public Process {
