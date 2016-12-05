@@ -37,6 +37,9 @@ static double REORDER_CHANGE                = 0.5;
 
 static double CUSTOMER_TIME_RATION  = 1.0;
 static double PREPARING_TIME_RATION = 1.0;
+
+static unsigned OVERAL_COUNT = 0;
+static unsigned AWAY_COUNT = 0;
 //##################################################
 
 
@@ -135,7 +138,7 @@ Histogram peopleInSystem("Zákazníci v systéme (min)", 0, 10, 10);
 Histogram peopleEnteringSystem("Príchod zákazníkov (hours)", SEC_TO_HOURS(SYM_BEGIN_TIME), 0.25, 12);
 
 Histogram personalWait("Čakacia doba na personál (min)", 0, 1, 10);
-Histogram foodWait("Čakacia doba na jedlo (min)", 0, 2, 15);
+Histogram foodWait("Čakacia doba na jedlo (min)", 0, 5, 15);
 Histogram queueWait("Čakacia doba vo fronte (min)", 0, 2, 10);
 
 /** General asynch process */
@@ -253,6 +256,7 @@ public:
         double payTime;
         bool reorder = false;
         
+        OVERAL_COUNT++;
         peopleEnteringSystem(SEC_TO_HOURS(Time));
         
         LogTime("[CUSTOMER: %s] Has arrived", getID());
@@ -263,6 +267,7 @@ public:
             // They decide to leave with chance
             double chance = Random();
             if (chance < LONG_QUEUE_DECISION_CHANCE) {
+                AWAY_COUNT++;
                 LogTime("[CUSTOMER: %s] Has decided to leave, because front is too large (%i)", getID(), frontLength);
                 return;
             }
@@ -272,6 +277,7 @@ public:
         
         // Setup timer to leave customer
         SystemLeaving* system_leaving = SystemLeaving::activateInstance(calculateDecisionTime(), this, [=](double duration) {
+            AWAY_COUNT++;
             if (HOT_HOURS) queueWait(SEC_TO_MINUTES(Time - t));
             const unsigned int frontLength = settlers.Q->Length();
             LogTime("[CUSTOMER] Is leaving because it takes too long (%s) (front: %i)", time_to_string(duration).c_str(), frontLength - 1);
@@ -555,6 +561,8 @@ int main(int argc, char* argv[]) {
     personalWait.Output();
     foodWait.Output();
     queueWait.Output();
+    
+    printf("LEFT: %.2f%%\n", (AWAY_COUNT / (double)OVERAL_COUNT) * 100);
     
     return EXIT_SUCCESS;
 }

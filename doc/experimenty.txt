@@ -1,10 +1,39 @@
 Experimenty:
 
-1. Expreiment zvojnasobenia prichodu zakaznikov, odsledovať ktorá časť reštaurácie je najslabším článkom, komu zo zamestnancov sa bude nabalovať robota. Poprípade čo by bolo riešením.
+./restaurace 1 3 24 6 1.0 1.0
 
-2. Experiment odchodu alebo nepritonosti jedneho alebo dvoch čašníkov a aký dopad by to malo na beh reštaurácie.
+1. Expreiment zvojnasobenia prichodu zakaznikov a počtu stolov, aby sa dalo odsledovať, ktorá časť reštaurácie je najslabším článkom, komu zo zamestnancov sa bude nabalovať robota. Poprípade čo by bolo riešením.
+
+./restaurace 1 3 48 6 0.5 1.0
+
+Percento odchodu zákazníkov: 0.00%
+Percento odchodu zákazníkov: 44.90%
+Maximálny čakací čas na jedlo: 33.9721 min
+Maximálny čakací čas na jedlo: 60.5418 min
+Maximálny čas strávený v podniku: 87.9803 min
+Maximálny čas strávený v podniku: 124.654 min
+
+Pri zdojnásobení frekvencie príchodu zákazníkov, výrazne ako najslabším článkom prevádzky bola kuchyňa. Čas čakania na jedlo sa ku záveru špičky zdvojnásobil kôli nedostatočnej rýchlosti kuchyňe. Stoly sa zapĺňali ale ľudia neodchádzali, tým sa vytvárala fronta pred reštauráciou čo viedlo k odchdou okolo 45% zákazníkov. Počet čašníkov je dostatočný aj pri takýchto extrémnych prípadoch.
+=================================================================================
+
+2. Experiment odchodu alebo nepritonosti dvoch čašníkov a aký dopad by to malo na beh reštaurácie.
+
+./restaurace 1 1 24 6 1.0 1.0
+
+Percento odchodu zákazníkov: 0.00%
+Percento odchodu zákazníkov: 46.38%%
+Maximálny čas čakania na personál: 2.38456 min
+Maximálny čas čakania na personál: 47.9308 min
+
+Po odstránení dvohch čašníkov (z celkových 3), reštaurácia nestíhala vybavovať zákazníkov. Jeden čašník na špičku obeda očividné nestačí, čakacie doby na personál sa zvýšili z 2min na takmer 50min, čo viedlo k fronte pred reštauráciou a následný odchod 46% zákazníkov.
+=================================================================================
 
 3. Experiment nešikovného kuchára kde sa zvojnásobí čas prípravi jedla, v prípade že varí pomaly alebo sa mu jedlo spáli. Dopad a spokojnosť zákazníkov z časového hladiska.
 
+./restaurace 1 3 24 6 1.0 2.0
+=================================================================================
+
 4. Redundancia zamestnansov v málo navštevovaných dňoch (napríklad zvojnásobenie časového intervalu príchodu medzi zákazníkmi). Ktorá rola zamestnanca je redundantná bez vplivu na normálny beh reštaurácie a kolko by ich nemuselo prísť do práce.
+
+./restaurace 1 3 24 6 2.0 1.0
 

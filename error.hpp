@@ -4,7 +4,7 @@
 
 // Define DEBUG macro if it is not already defined
 #ifndef DEBUG
-    #define DEBUG       1
+    #define DEBUG       0
 #endif
 #define LOG_WARNINGS    1
 
