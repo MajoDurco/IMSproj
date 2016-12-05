@@ -17,21 +17,26 @@ using namespace std;
 #define MINUTES(x)  (x * SEC_IN_MIN)
 #define HOURS(x)    (x * MIN_IN_HOUR * SEC_IN_MIN)
 
+#define SEC_TO_MINUTES(x)   ((x) / (double)SEC_IN_MIN)
+#define SEC_TO_HOURS(x)     ((x) / (double)SEC_IN_MIN / (double)MIN_IN_HOUR)
+
 //##################################################
 #define SYM_BEGIN_TIME          HOURS(11)   // 11:00
 #define SYM_DURATION_TIME       HOURS(3)    // 14:00
 #define SYM_HOT_HOUR_BEGIN      HOURS(11)   // 11:00
 #define SYM_HOT_HOUR_DURATION   HOURS(3)    // 14:00
 
-#define NUMBER_OF_SETTLERS  1
-#define NUMBER_OF_WAITERS   3
-#define NUMBER_OF_TABLES    24
-#define NUMBER_OF_COOKERS   6
+static double NUMBER_OF_SETTLERS    = 1;
+static double NUMBER_OF_WAITERS     = 3;
+static double NUMBER_OF_TABLES      = 24;
+static double NUMBER_OF_COOKERS     = 6;
 
-#define LONG_QUEUE_DECISION_SIZE    5
-#define LONG_QUEUE_DECISION_CHANCE  0.2
+static double LONG_QUEUE_DECISION_SIZE      = 5;
+static double LONG_QUEUE_DECISION_CHANCE    = 0.2;
+static double REORDER_CHANGE                = 0.5;
 
-#define REORDER_CHANGE      0.5
+static double CUSTOMER_TIME_RATION  = 1.0;
+static double PREPARING_TIME_RATION = 1.0;
 //##################################################
 
 
@@ -43,9 +48,9 @@ static bool HOT_HOURS = false;
 /** Preparing order time */
 inline double calculateOrderPreparingTime(bool desert) {
     if (desert) {
-        return Uniform(MINUTES(3), MINUTES(5));
+        return Uniform(MINUTES(3), MINUTES(5)) * PREPARING_TIME_RATION;
     } else {
-        return Uniform(MINUTES(10), MINUTES(20));
+        return Uniform(MINUTES(10), MINUTES(20)) * PREPARING_TIME_RATION;
     }
 }
 
@@ -78,9 +83,9 @@ inline double calculateDecisionTime() {
 inline double calculateEnterTime() {
     if (HOT_HOURS) {
         //return Exponential(MINUTES(2));
-        return Uniform(MINUTES(1), MINUTES(4));
+        return Uniform(MINUTES(1), MINUTES(4)) * CUSTOMER_TIME_RATION;
     } else {
-        return Uniform(MINUTES(3), MINUTES(12));
+        return Uniform(MINUTES(3), MINUTES(12)) * CUSTOMER_TIME_RATION;
     }
 }
 //##################################################
@@ -126,8 +131,12 @@ Store tables("Stoly", NUMBER_OF_TABLES);
 /** Cookers' store */
 Store cookers("Kuchári", NUMBER_OF_COOKERS);
 
-Histogram peopleEnteringSystem("Príchod zákazníkov", SYM_BEGIN_TIME, HOURS(0.5), 8);
-Histogram peopleInSystem("Zákazníci v systéme", 0, MINUTES(10), 10);
+Histogram peopleInSystem("Zákazníci v systéme (min)", 0, 10, 10);
+Histogram peopleEnteringSystem("Príchod zákazníkov (hours)", SEC_TO_HOURS(SYM_BEGIN_TIME), 0.25, 12);
+
+Histogram personalWait("Čakacia doba na personál (min)", 0, 1, 10);
+Histogram foodWait("Čakacia doba na jedlo (min)", 0, 2, 15);
+Histogram queueWait("Čakacia doba vo fronte (min)", 0, 2, 10);
 
 /** General asynch process */
 class AsyncRoutine: public Process {
@@ -235,6 +244,7 @@ public:
     
     void Behavior() {
         const double tvstup = Time;
+        double t, w;
         double choosingTime;
         double writingOrder;
         double distance;
@@ -243,7 +253,7 @@ public:
         double payTime;
         bool reorder = false;
         
-        peopleEnteringSystem(Time);
+        peopleEnteringSystem(SEC_TO_HOURS(Time));
         
         LogTime("[CUSTOMER: %s] Has arrived", getID());
         
@@ -258,8 +268,11 @@ public:
             }
         }
         
+        t = Time;
+        
         // Setup timer to leave customer
-        SystemLeaving* system_leaving = SystemLeaving::activateInstance(calculateDecisionTime(), this, [](double duration) {
+        SystemLeaving* system_leaving = SystemLeaving::activateInstance(calculateDecisionTime(), this, [=](double duration) {
+            if (HOT_HOURS) queueWait(SEC_TO_MINUTES(Time - t));
             const unsigned int frontLength = settlers.Q->Length();
             LogTime("[CUSTOMER] Is leaving because it takes too long (%s) (front: %i)", time_to_string(duration).c_str(), frontLength - 1);
         });
@@ -267,7 +280,6 @@ public:
         LogTime("[CUSTOMER: %s] wait in queue (Queue: %i)", getID(), settlers.Q->Length() + 1);
         
         // Settler starts settling people group
-        // TODO: Does it work correctly?
         if (!tables.Empty()) {
             Enter(settlers);
             Enter(tables);
@@ -275,6 +287,7 @@ public:
             Enter(tables);
             Enter(settlers);
         }
+        if (HOT_HOURS) queueWait(SEC_TO_MINUTES(Time - t));
         
         LogTime("[CUSTOMER: %s] Is settling (Queue: %i)", getID(), settlers.Q->Length());
         
@@ -295,10 +308,12 @@ public:
         //============================================
         // WAITER PHASE 1: Menu
         
+        t = Time;
         // Waiter decided to go to table
         Enter(waiters);
         // Waiter is going to table
         Wait(distance);
+        if (HOT_HOURS) w += (Time - t);
         
         // Waiter is returning to his place
         StoreLeaving::activateInstance(distance, waiters);
@@ -318,10 +333,12 @@ public:
             
             LogTime("[CUSTOMER: %s] Is waiting for waiter to order", getID());
             
+            t = Time;
             // Waiter decided to go to table
             Enter(waiters);
             // Waiter is going to table
             Wait(distance);
+            if (HOT_HOURS) w += (Time - t);
             
             // Generate writing order time
             writingOrder = calculateWritingOrderTime();
@@ -363,6 +380,7 @@ public:
             
             LogTime("[CUSTOMER: %s] Has ordered and is waiting for a meal",  getID());
             
+            t = Time;
             // Freez process
             Passivate();
             
@@ -375,6 +393,7 @@ public:
             Wait(distance);
             // Reset priority
             Priority = 0;
+            if (HOT_HOURS) foodWait(SEC_TO_MINUTES(Time - t));
             //=============================================
             
             LogTime("[CUSTOMER: %s] Has got his meal", getID());
@@ -395,10 +414,12 @@ public:
         //=============================================
         // WAITER PHASE 4: Payment
         
+        t = Time;
         // Waiter decided to go to table
         Enter(waiters);
         // Waiter is going to table
         Wait(distance);
+        if (HOT_HOURS) w += (Time - t);
         
         // Calculate pay time
         payTime = MINUTES(1);
@@ -421,8 +442,9 @@ public:
         
         // Caculate overal time in system
         if (HOT_HOURS) {
+            personalWait(SEC_TO_MINUTES(w));
             const double timeInSystem = Time - tvstup;
-            peopleInSystem(timeInSystem);
+            peopleInSystem(SEC_TO_MINUTES(timeInSystem));
         }
     }
     
@@ -469,8 +491,45 @@ class HotHour: public Process {
     }
 };
 
+string usageString = "Usage: ./restaurace [<settlers(1)> <waiters(3)> <tables(24)> <cookers(6)> <ct_ratio(1.0)> pf_ratio(1.0)]";
+
+void usage() {
+    printf("%s", usageString.c_str());
+    exit(0);
+}
+
 /** Main function */
 int main(int argc, char* argv[]) {
+    
+    if (argc > 1) {
+        bool success = true;
+        const int requiredCount = 6;
+        if (argc > requiredCount) {
+            
+            double d[requiredCount];
+            for (int i = 0; i < requiredCount; i++) {
+                stringstream ss;
+                ss << argv[1 + i];
+                if (!(ss >> d[i])) {
+                    Warning("Couldn't convert arguments! Ignoring all arguments!");
+                    success = false;
+                    break;
+                }
+            }
+            if (success) {
+                settlers.SetCapacity((int)d[0]);
+                waiters.SetCapacity((int)d[1]);
+                tables.SetCapacity((int)d[2]);
+                cookers.SetCapacity((int)d[3]);
+                
+                CUSTOMER_TIME_RATION = d[4];
+                PREPARING_TIME_RATION = d[5];
+            }
+        } else {
+            Warning("Wrong argument format");
+            usage();
+        }
+    }
     
     const double startingTime = SYM_BEGIN_TIME;
     const double endTime = startingTime + SYM_DURATION_TIME;
@@ -492,6 +551,10 @@ int main(int argc, char* argv[]) {
     tables.Output();
     peopleInSystem.Output();
     peopleEnteringSystem.Output();
+    
+    personalWait.Output();
+    foodWait.Output();
+    queueWait.Output();
     
     return EXIT_SUCCESS;
 }
