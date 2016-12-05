@@ -5,10 +5,54 @@
 #include <cmath>
 #include <iomanip>
 #include <sstream>
-
-#include "error.hpp"
+#include <iostream>
+#include <stdarg.h>
 
 using namespace std;
+
+// Define DEBUG macro if it is not already defined
+#ifndef DEBUG
+    #define DEBUG       0
+#endif
+#define LOG_WARNINGS    1
+
+/** Prints error message to stderr and exit with code */
+void Fatal(int code, const char *fmt, ...) {
+    va_list list;
+    va_start(list, fmt);
+    if (code) {
+        fprintf(stderr, "[FATAL]: (%i): ", code);
+    }
+    vfprintf(stderr, fmt, list);
+    printf("\n");
+    va_end(list);
+    exit(code);
+}
+
+/** Prints error message to stderr */
+void Warning(const char *fmt, ...) {
+#if LOG_WARNINGS
+    va_list list;
+    va_start(list, fmt);
+    fprintf(stderr, "Warning: ");
+    vfprintf(stderr, fmt, list);
+    printf("\n");
+    va_end(list);
+#endif
+}
+
+/** Prints message to stdout */
+void Log(const char *fmt, ...) {
+#if DEBUG
+    va_list list;
+    va_start(list, fmt);
+    fprintf(stderr, "LOG: ");
+    vfprintf(stderr, fmt, list);
+    printf("\n");
+    va_end(list);
+#endif
+}
+
 
 // Helpfull macros with time calculations
 #define SEC_IN_MIN      60
@@ -500,7 +544,7 @@ class HotHour: public Process {
 string usageString = "Usage: ./restaurace [<settlers(1)> <waiters(3)> <tables(24)> <cookers(6)> <ct_ratio(1.0)> pf_ratio(1.0)]";
 
 void usage() {
-    printf("%s", usageString.c_str());
+    printf("%s\n", usageString.c_str());
     exit(0);
 }
 
@@ -562,7 +606,11 @@ int main(int argc, char* argv[]) {
     foodWait.Output();
     queueWait.Output();
     
-    printf("LEFT: %.2f%%\n", (AWAY_COUNT / (double)OVERAL_COUNT) * 100);
+    printf("Max customer time: %.2f min\n", peopleInSystem.stat.Max());
+    printf("Max queue wait: %.2f min\n", queueWait.stat.Max());
+    printf("Max personal wait: %.2f min\n", personalWait.stat.Max());
+    printf("Max food wait: %.2f min\n", foodWait.stat.Max());
+    printf("Customer left: %.2f%%\n", (AWAY_COUNT / (double)OVERAL_COUNT) * 100);
     
     return EXIT_SUCCESS;
 }

@@ -45,8 +45,14 @@ clean:
 	@rm -f simlib.so
 	@rm -f $(EXECUTABLE)
 	@rm -f *.o
-	
+
+# Usage: ./restaurace [<settlers(1)> <waiters(3)> <tables(24)> <cookers(6)> <ct_ratio(1.0)> pf_ratio(1.0)]
 run:
+	@./$(EXECUTABLE) 1 3 24 6 1.0 1.0 >"experiment0.txt"
+	@./$(EXECUTABLE) 1 3 48 6 0.5 1.0 >"experiment1.txt"
+	@./$(EXECUTABLE) 1 1 24 6 1.0 1.0 >"experiment2.txt"
+	@./$(EXECUTABLE) 1 3 24 6 1.0 2.0 >"experiment3.txt"
+	@./$(EXECUTABLE) 1 1 24 3 2.0 1.0 >"experiment4.txt"
 	@./$(EXECUTABLE)
 	
 
