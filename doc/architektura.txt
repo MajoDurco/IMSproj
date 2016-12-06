@@ -1,0 +1,30 @@
+
+Simulačné experimenty:
+[niekde]
+Aby sme vedeli experimentovať s modelom, museli sme ho mierne prispôsobiť aby sme dokázali modifikovať a získať požadované dáta bez velkého zásahu do implementácie.
+
+################################################################
+
+Architektúra simulačnéhomodelu:
+
+	Všetky implementované objekty využívajú dedičnosť od tried knižnice SIMLIB/C++ (Event, Process). Celá architektúra simulačného modelu je postavená z pohľadu skupiny zákazníkov, ktorý sú vždy spolu a v modeli sa tvária ako jeden objekt *PeopleGroup*. Generátor výchádza z triedy *Event*, ktorý pravidelne v rovnomernom rozložení (Uniform) generuje skupiny zákazníkov počas doby celej simulácie. Process synchronizácie a definície špecifických hodnôt pre náš model je celý implementovaný v triede skupiny zákazníkov, pomocou generických, všeobecne využitelných tried ako pre asynchrónny process alebo asynchrónny odchod z objektu Store. Process zákazníkov sa synchronizuje so skladmi (Store) čašníkov, usádzačov a kuchyňou.
+	Mapovanie abstraktného modelu na simulačný zoskupuje zákazníkov do skupiny, zjednodušuje kuchárov a asistentov kuchyňe do kuchynských jednotiek a priemeruje alebo zanedbáva úkony čašníkov v dôsledku neefektivity návrhu, komplikácii alebo vzniku extrémnych nepresností.
+
+#################################################################
+
+Implementačný prístup:
+[Nakoniec]
+	Pri návrhu procesu kuchyňe, nás zaujíma výstup a to je kolko objednávok dokáže kuchyňa produkovať naraz. V kuchyňi sa nachádzajú kuchári a asistenti, ktorí pomáhajú priravovať ingrediencie a kedže kuchári optimalizujú prácu tým, že pripravujú spoločné časti objednávok súčastne, nedá sa jednoznačne určiť kto kolko a čo robí. Simulácia zjednodušuje kuchynský process a jeho výstup na kuchynské jednoty. 
+	Reštaurácia otvára so špičkou, to znamená že príchod zákazníkov je od začiatku zhustený a začiatočný stav je prázdna reštaurácia. Simulácia končí v čase konca objednajšej špičky, kedy zákazníci prichádzajú v menších intervaloch a tým v systéme ostávajú ludia, kedže reštaurácia sa ešte nezatvára. Od toho momentu by sa všetky fronty mali vybaviť a beh reštaurácie sa mierne spomalí, v dôsledku menšieho nátlaku zámestnancov bez následkov. Počas dňa sa by sa konfigurácia zmenila, kedže sa zmení jedálníček a personál podla fázy dňa (poobednašie jedlo, večera).
+
+#################################################################
+
+Záver z experientov:
+	Z experimentov sme zistili možné stavy do ktorých by sa reštaurácia priblížia za určitých podmienok. Simulácia v normálnom stave vychádza z bežného dňa a pri nečakanej situácii, ako sviatky alebo iné volné dni, by mohla čeliť zisteným problémom. Experimenty majú odchilku od reality a hodnoty v reálnom systéme by sa líšili. Simulačný model nieje dokonalý a neodráža realitu v dôsledku zanedbania alebo neobsiahnutia niekolkých známych situácii ako čašníkova nehoda, rozbitie tanierov, reklamácia jedla, náhly odchod zákazníka počas čakania, netrpezlivosť na objednané jedlo, chýbajúce alebo pokazené ingrediencie v kuchyni atď.
+	Normálny stav reštaurácie s východzou konfiguráciou je podla experimentov v ideálnom rozmedzí medzi redundanciou a stratou. Keď modifikujeme konfiguráciu do väčšieho nátlaku, reštaurácia nestíha, zákazníci začínajú odchádzať z nespokojnosti a v opačnom prípade nieje dostatok roboty pre všetkých a sú redundantní zamestnanci.
+
+###################################################################
+
+Záver:
+*   Simulačná aplikácia je schopná nasimulovať, beh okresanej verzie abstraktného modelu. Jej návrh sa dá všach rozširovať aby boli výsledky presnejšie a predpoklad výsledkov bližší k realite.
+*   Na základe výsledkov aplikácie sme overovali validitu systému či sa zosumarizované hodnoty príliž nelíšia od nameraných a očakávaných a môžme povedať, že model je v zanedbatelnej norme a je validný.
